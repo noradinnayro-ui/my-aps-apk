@@ -1,0 +1,8 @@
+{
+  "name": "Remix DevCraft",
+  "description": "Developer config studio, Pomodoro focus timer, and offline developer utilities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

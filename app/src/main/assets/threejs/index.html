@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>DevCraft 3D Desk</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #0B1120;
+      font-family: system-ui, -apple-system, sans-serif;
+      user-select: none;
+    }
+    #canvas-host {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
+    #hud-dock {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      z-index: 10;
+    }
+    .dock-panel {
+      pointer-events: auto;
+      background: rgba(15, 23, 42, 0.90);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      border-radius: 18px;
+      padding: 8px 10px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      max-width: 520px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+    }
+    .dock-panel.collapsed {
+      padding: 6px 12px;
+    }
+    .hud-btn {
+      appearance: none;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(30, 41, 59, 0.92);
+      color: #F8FAFC;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 8px 12px;
+      min-height: 38px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .hud-btn.active {
+      background: #0284C7;
+      border-color: #38BDF8;
+      color: #FFFFFF;
+    }
+    .hud-btn.accent {
+      background: rgba(245, 158, 11, 0.22);
+      border-color: rgba(245, 158, 11, 0.55);
+      color: #FCD34D;
+    }
+    .hud-toggle {
+      background: transparent;
+      border: none;
+      color: #38BDF8;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    .hidden { display: none !important; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://appassets.local/assets/threejs/three.module.min.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="canvas-host"></div>
+
+  <div id="hud-dock">
+    <div id="dock-panel" class="dock-panel">
+      <button class="hud-btn active" data-cam="overview">Overview</button>
+      <button class="hud-btn" data-cam="totem">Pomodoro Core</button>
+      <button class="hud-btn" data-cam="monitor">Code Monitor</button>
+      <button class="hud-btn" data-cam="lamp">Desk Lamp</button>
+      <button id="spin-btn" class="hud-btn accent">Orbit: On</button>
+      <button id="collapse-btn" class="hud-toggle">Hide</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'https://appassets.local/assets/threejs/OrbitControls.js';
+    import { RoomEnvironment } from 'https://appassets.local/assets/threejs/RoomEnvironment.js';
+
+    const host = document.getElementById('canvas-host');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    host.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const darkBg = new THREE.Color('#0B1120');
+    const lightBg = new THREE.Color('#DDE6F2');
+    scene.background = darkBg.clone();
+    scene.fog = new THREE.FogExp2(darkBg.getHex(), 0.048);
+
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    const roomEnv = new RoomEnvironment();
+    const envRT = pmremGenerator.fromScene(roomEnv, 0.04);
+    scene.environment = envRT.texture;
+    scene.environmentIntensity = 0.72;
+    roomEnv.dispose();
+
+    const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 60);
+    camera.position.set(4.1, 2.75, 4.7);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.minDistance = 2.0;
+    controls.maxDistance = 10.5;
+    controls.target.set(0, 0.65, 0);
+
+    // Studio Lighting: Warm directional key + Cool hemisphere fill + Lamp spot
+    const hemiLight = new THREE.HemisphereLight('#7DD3FC', '#0F172A', 0.55);
+    scene.add(hemiLight);
+
+    const keyLight = new THREE.DirectionalLight('#FFF3E0', 2.4);
+    keyLight.position.set(4.5, 6.2, 3.8);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.near = 1.0;
+    keyLight.shadow.camera.far = 16.0;
+    keyLight.shadow.camera.left = -4.5;
+    keyLight.shadow.camera.right = 4.5;
+    keyLight.shadow.camera.top = 4.5;
+    keyLight.shadow.camera.bottom = -4.5;
+    keyLight.shadow.bias = -0.0006;
+    scene.add(keyLight);
+
+    // Procedural Desk Surface CanvasTexture (Brushed Slate + Subtle Grid)
+    function createDeskTextures() {
+      const colorCanvas = document.createElement('canvas');
+      colorCanvas.width = 512;
+      colorCanvas.height = 512;
+      const ctx = colorCanvas.getContext('2d');
+      ctx.fillStyle = '#182234';
+      ctx.fillRect(0, 0, 512, 512);
+      for (let i = 0; i < 2400; i++) {
+        const y = Math.random() * 512;
+        const alpha = Math.random() * 0.05;
+        ctx.fillStyle = `rgba(148, 163, 184, ${alpha})`;
+        ctx.fillRect(Math.random() * 512, y, 24 + Math.random() * 60, 1);
+      }
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.08)';
+      ctx.lineWidth = 1;
+      for (let g = 0; g <= 512; g += 64) {
+        ctx.beginPath(); ctx.moveTo(g, 0); ctx.lineTo(g, 512); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, g); ctx.lineTo(512, g); ctx.stroke();
+      }
+      const colorTex = new THREE.CanvasTexture(colorCanvas);
+      colorTex.wrapS = colorTex.wrapT = THREE.RepeatWrapping;
+      colorTex.repeat.set(6, 6);
+      colorTex.colorSpace = THREE.SRGBColorSpace;
+
+      const bumpCanvas = document.createElement('canvas');
+      bumpCanvas.width = 256;
+      bumpCanvas.height = 256;
+      const bctx = bumpCanvas.getContext('2d');
+      bctx.fillStyle = '#808080';
+      bctx.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 1800; i++) {
+        const v = 110 + Math.floor(Math.random() * 35);
+        bctx.fillStyle = `rgb(${v},${v},${v})`;
+        bctx.fillRect(Math.random() * 256, Math.random() * 256, 18, 1);
+      }
+      const bumpTex = new THREE.CanvasTexture(bumpCanvas);
+      bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
+      bumpTex.repeat.set(8, 8);
+      return { colorTex, bumpTex };
+    }
+
+    const { colorTex: deskColorTex, bumpTex: deskBumpTex } = createDeskTextures();
+    const deskMat = new THREE.MeshStandardMaterial({
+      map: deskColorTex,
+      roughnessMap: deskBumpTex,
+      bumpMap: deskBumpTex,
+      bumpScale: 0.008,
+      roughness: 0.72,
+      metalness: 0.14,
+    });
+    const desk = new THREE.Mesh(new THREE.CylinderGeometry(8.5, 8.5, 0.16, 64), deskMat);
+    desk.position.y = -0.08;
+    desk.receiveShadow = true;
+    scene.add(desk);
+
+    // Soft radial contact shadow helper
+    function createContactShadow(radius) {
+      const c = document.createElement('canvas');
+      c.width = 128; c.height = 128;
+      const gctx = c.getContext('2d');
+      const grad = gctx.createRadialGradient(64, 64, 6, 64, 64, 62);
+      grad.addColorStop(0, 'rgba(0,0,0,0.52)');
+      grad.addColorStop(0.55, 'rgba(0,0,0,0.18)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      gctx.fillStyle = grad;
+      gctx.fillRect(0, 0, 128, 128);
+      const tex = new THREE.CanvasTexture(c);
+      const plane = new THREE.Mesh(
+        new THREE.PlaneGeometry(radius * 2, radius * 2),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })
+      );
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.y = 0.003;
+      return plane;
+    }
+
+    // Shared PBR materials
+    const obsidianMat = new THREE.MeshStandardMaterial({ color: '#111827', roughness: 0.36, metalness: 0.65 });
+    const brushedAluminumMat = new THREE.MeshStandardMaterial({ color: '#94A3B8', roughness: 0.28, metalness: 0.88 });
+    const brassMat = new THREE.MeshStandardMaterial({ color: '#F59E0B', roughness: 0.24, metalness: 0.92 });
+    const cyanGlowMat = new THREE.MeshStandardMaterial({
+      color: '#38BDF8',
+      emissive: '#0EA5E9',
+      emissiveIntensity: 1.4,
+      roughness: 0.2,
+      metalness: 0.3,
+    });
+
+    // =========================================================================
+    // 1. HERO COMPOSITE: Kinetic Pomodoro Totem & Desk Chronometer (9+ parts)
+    // =========================================================================
+    const totemGroup = new THREE.Group();
+    totemGroup.position.set(0.0, 0, 0.35);
+    totemGroup.add(createContactShadow(0.95));
+
+    // Base stepped plinth (LatheGeometry)
+    const plinthPts = [
+      new THREE.Vector2(0.0, 0.0),
+      new THREE.Vector2(0.76, 0.0),
+      new THREE.Vector2(0.76, 0.08),
+      new THREE.Vector2(0.68, 0.14),
+      new THREE.Vector2(0.62, 0.14),
+      new THREE.Vector2(0.60, 0.22),
+      new THREE.Vector2(0.0, 0.22),
+    ];
+    const plinth = new THREE.Mesh(new THREE.LatheGeometry(plinthPts, 48), obsidianMat);
+    plinth.castShadow = true;
+    plinth.receiveShadow = true;
+    totemGroup.add(plinth);
+
+    // Brass collar bezel
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.63, 0.032, 16, 48), brassMat);
+    collar.rotation.x = Math.PI / 2;
+    collar.position.y = 0.22;
+    collar.castShadow = true;
+    totemGroup.add(collar);
+
+    // 12 Instanced dial tick markers around plinth collar
+    const tickGeo = new THREE.BoxGeometry(0.028, 0.02, 0.085);
+    const tickInst = new THREE.InstancedMesh(tickGeo, cyanGlowMat, 12);
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      dummy.position.set(Math.cos(a) * 0.56, 0.23, Math.sin(a) * 0.56);
+      dummy.rotation.set(0, -a + Math.PI / 2, 0);
+      dummy.updateMatrix();
+      tickInst.setMatrixAt(i, dummy.matrix);
+    }
+    tickInst.instanceMatrix.needsUpdate = true;
+    totemGroup.add(tickInst);
+
+    // Central brass pedestal spindle
+    const spindle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.1, 0.42, 24), brushedAluminumMat);
+    spindle.position.y = 0.42;
+    spindle.castShadow = true;
+    totemGroup.add(spindle);
+
+    // 3 Nested counter-rotating gyroscope gimbal rings
+    const outerGimbal = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.022, 16, 56), brushedAluminumMat);
+    outerGimbal.position.y = 0.82;
+    outerGimbal.castShadow = true;
+    totemGroup.add(outerGimbal);
+
+    const midGimbal = new THREE.Mesh(new THREE.TorusGeometry(0.36, 0.02, 16, 48), brassMat);
+    midGimbal.position.y = 0.82;
+    midGimbal.castShadow = true;
+    totemGroup.add(midGimbal);
+
+    const innerGimbal = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.016, 14, 40), cyanGlowMat);
+    innerGimbal.position.y = 0.82;
+    totemGroup.add(innerGimbal);
+
+    // Faceted glowing crystal core
+    const crystalCore = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.15, 0),
+      new THREE.MeshStandardMaterial({
+        color: '#38BDF8',
+        emissive: '#0284C7',
+        emissiveIntensity: 1.8,
+        roughness: 0.12,
+        metalness: 0.25,
+      })
+    );
+    crystalCore.position.y = 0.82;
+    totemGroup.add(crystalCore);
+
+    // Frosted glass dome shell
+    const glassDome = new THREE.Mesh(
+      new THREE.SphereGeometry(0.61, 40, 28, 0, Math.PI * 2, 0, Math.PI * 0.62),
+      new THREE.MeshPhysicalMaterial({
+        color: '#E0F2FE',
+        roughness: 0.14,
+        metalness: 0.0,
+        transmission: 0.72,
+        transparent: true,
+        opacity: 0.42,
+        ior: 1.45,
+        clearcoat: 1.0,
+      })
+    );
+    glassDome.position.y = 0.68;
+    totemGroup.add(glassDome);
+
+    // Mechanical top crown button
+    const crownCap = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.07, 24), brassMat);
+    crownCap.position.y = 1.32;
+    crownCap.castShadow = true;
+    totemGroup.add(crownCap);
+
+    const coreLight = new THREE.PointLight('#38BDF8', 1.6, 3.8);
+    coreLight.position.set(0, 0.85, 0);
+    totemGroup.add(coreLight);
+
+    scene.add(totemGroup);
+
+    // =========================================================================
+    // 2. COMPOSITE PROP: Ultrawide Developer Monitor (6 parts)
+    // =========================================================================
+    const monitorGroup = new THREE.Group();
+    monitorGroup.position.set(-0.95, 0, -1.25);
+    monitorGroup.rotation.y = 0.34;
+    monitorGroup.add(createContactShadow(1.05));
+
+    const monFoot = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.05, 0.52), brushedAluminumMat);
+    monFoot.position.y = 0.025;
+    monFoot.castShadow = true;
+    monFoot.receiveShadow = true;
+    monitorGroup.add(monFoot);
+
+    const monSpine = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.85, 0.1), brushedAluminumMat);
+    monSpine.position.set(0, 0.45, -0.14);
+    monSpine.rotation.x = -0.12;
+    monSpine.castShadow = true;
+    monitorGroup.add(monSpine);
+
+    const vesaCollar = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.28, 0.08), obsidianMat);
+    vesaCollar.position.set(0, 0.85, -0.06);
+    vesaCollar.castShadow = true;
+    monitorGroup.add(vesaCollar);
+
+    const monitorChassis = new THREE.Mesh(new THREE.BoxGeometry(2.35, 1.18, 0.07), obsidianMat);
+    monitorChassis.position.set(0, 0.96, 0.0);
+    monitorChassis.castShadow = true;
+    monitorGroup.add(monitorChassis);
+
+    // Procedural CanvasTexture Code Screen (settings_dd06cfbb.json)
+    function createCodeScreenTexture() {
+      const c = document.createElement('canvas');
+      c.width = 768; c.height = 384;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#090F1E';
+      ctx.fillRect(0, 0, 768, 384);
+
+      // Top editor tab bar
+      ctx.fillStyle = '#111827';
+      ctx.fillRect(0, 0, 768, 34);
+      ctx.fillStyle = '#1E293B';
+      ctx.fillRect(12, 4, 210, 30);
+      ctx.fillStyle = '#38BDF8';
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText('settings_dd06cfbb.json', 24, 24);
+
+      const lines = [
+        ['{', '#94A3B8'],
+        ['  "editor.selectionHighlight": ', '#38BDF8', 'false,', '#F59E0B'],
+        ['  "files.autoSave": ', '#38BDF8', '"onFocusChange",', '#10B981'],
+        ['  "editor.quickSuggestions": {', '#38BDF8'],
+        ['    "other": ', '#38BDF8', '"on",', '#10B981'],
+        ['    "comments": ', '#38BDF8', '"off",', '#10B981'],
+        ['    "strings": ', '#38BDF8', '"on"', '#10B981'],
+        ['  },', '#94A3B8'],
+        ['  "devcraft.pomodoroChime": ', '#38BDF8', 'true', '#F59E0B'],
+        ['}', '#94A3B8'],
+      ];
+      ctx.font = '18px monospace';
+      lines.forEach((parts, idx) => {
+        const y = 72 + idx * 30;
+        ctx.fillStyle = '#475569';
+        ctx.fillText(String(idx + 1).padStart(2, ' '), 18, y);
+        let x = 58;
+        for (let p = 0; p < parts.length; p += 2) {
+          ctx.fillStyle = parts[p + 1];
+          ctx.fillText(parts[p], x, y);
+          x += ctx.measureText(parts[p]).width;
+        }
+      });
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    const screenMesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(2.22, 1.06),
+      new THREE.MeshStandardMaterial({
+        map: createCodeScreenTexture(),
+        emissiveMap: createCodeScreenTexture(),
+        emissive: '#FFFFFF',
+        emissiveIntensity: 0.72,
+        roughness: 0.18,
+        metalness: 0.05,
+      })
+    );
+    screenMesh.position.set(0, 0.96, 0.038);
+    monitorGroup.add(screenMesh);
+
+    const backLightBar = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.04, 0.03), cyanGlowMat);
+    backLightBar.position.set(0, 0.96, -0.045);
+    monitorGroup.add(backLightBar);
+
+    scene.add(monitorGroup);
+
+    // =========================================================================
+    // 3. COMPOSITE PROP: Articulated Studio Desk Lamp (6 parts)
+    // =========================================================================
+    const lampGroup = new THREE.Group();
+    lampGroup.position.set(1.55, 0, -0.85);
+    lampGroup.rotation.y = -0.7;
+    lampGroup.add(createContactShadow(0.65));
+
+    const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.4, 0.08, 32), obsidianMat);
+    lampBase.position.y = 0.04;
+    lampBase.castShadow = true;
+    lampBase.receiveShadow = true;
+    lampGroup.add(lampBase);
+
+    const lowerArm = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 1.0, 16), brushedAluminumMat);
+    lowerArm.position.set(-0.08, 0.52, 0);
+    lowerArm.rotation.z = 0.18;
+    lowerArm.castShadow = true;
+    lampGroup.add(lowerArm);
+
+    const knuckle = new THREE.Mesh(new THREE.SphereGeometry(0.065, 20, 20), brassMat);
+    knuckle.position.set(-0.17, 1.0, 0);
+    knuckle.castShadow = true;
+    lampGroup.add(knuckle);
+
+    const upperArm = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.85, 16), brushedAluminumMat);
+    upperArm.position.set(-0.46, 1.24, 0);
+    upperArm.rotation.z = 1.02;
+    upperArm.castShadow = true;
+    lampGroup.add(upperArm);
+
+    const shadePts = [
+      new THREE.Vector2(0.06, 0.22),
+      new THREE.Vector2(0.14, 0.18),
+      new THREE.Vector2(0.28, 0.0),
+      new THREE.Vector2(0.25, 0.0),
+      new THREE.Vector2(0.12, 0.16),
+      new THREE.Vector2(0.05, 0.19),
+    ];
+    const lampShade = new THREE.Mesh(
+      new THREE.LatheGeometry(shadePts, 32),
+      new THREE.MeshStandardMaterial({ color: '#1E293B', roughness: 0.35, metalness: 0.65, side: THREE.DoubleSide })
+    );
+    lampShade.position.set(-0.82, 1.24, 0);
+    lampShade.rotation.z = -0.35;
+    lampShade.castShadow = true;
+    lampGroup.add(lampShade);
+
+    const bulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 16, 16),
+      new THREE.MeshStandardMaterial({ color: '#FEF3C7', emissive: '#F59E0B', emissiveIntensity: 2.5 })
+    );
+    bulb.position.set(-0.84, 1.26, 0);
+    lampGroup.add(bulb);
+
+    const lampLight = new THREE.PointLight('#FBBF24', 2.6, 5.2);
+    lampLight.position.set(-0.86, 1.18, 0);
+    lampGroup.add(lampLight);
+
+    scene.add(lampGroup);
+
+    // =========================================================================
+    // 4. COMPOSITE PROP: Ceramic Coffee Mug & Coaster (4 parts)
+    // =========================================================================
+    const mugGroup = new THREE.Group();
+    mugGroup.position.set(1.25, 0, 0.82);
+    mugGroup.rotation.y = -0.5;
+    mugGroup.add(createContactShadow(0.42));
+
+    const coaster = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.29, 0.3, 0.025, 28),
+      new THREE.MeshStandardMaterial({ color: '#92400E', roughness: 0.88, metalness: 0.05 })
+    );
+    coaster.position.y = 0.0125;
+    coaster.receiveShadow = true;
+    mugGroup.add(coaster);
+
+    const mugPts = [
+      new THREE.Vector2(0.0, 0.025),
+      new THREE.Vector2(0.19, 0.025),
+      new THREE.Vector2(0.21, 0.36),
+      new THREE.Vector2(0.185, 0.36),
+      new THREE.Vector2(0.17, 0.06),
+      new THREE.Vector2(0.0, 0.06),
+    ];
+    const mugBody = new THREE.Mesh(
+      new THREE.LatheGeometry(mugPts, 32),
+      new THREE.MeshStandardMaterial({ color: '#E2E8F0', roughness: 0.22, metalness: 0.06 })
+    );
+    mugBody.castShadow = true;
+    mugBody.receiveShadow = true;
+    mugGroup.add(mugBody);
+
+    const handleCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.195, 0.29, 0),
+      new THREE.Vector3(0.31, 0.27, 0),
+      new THREE.Vector3(0.30, 0.13, 0),
+      new THREE.Vector3(0.185, 0.11, 0),
+    ]);
+    const mugHandle = new THREE.Mesh(
+      new THREE.TubeGeometry(handleCurve, 20, 0.022, 12, false),
+      new THREE.MeshStandardMaterial({ color: '#E2E8F0', roughness: 0.22, metalness: 0.06 })
+    );
+    mugHandle.castShadow = true;
+    mugGroup.add(mugHandle);
+
+    const coffeeDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(0.178, 28),
+      new THREE.MeshStandardMaterial({ color: '#27150B', roughness: 0.08, metalness: 0.1 })
+    );
+    coffeeDisc.rotation.x = -Math.PI / 2;
+    coffeeDisc.position.y = 0.32;
+    mugGroup.add(coffeeDisc);
+
+    scene.add(mugGroup);
+
+    // =========================================================================
+    // Camera Presets, Exponential Damping & Bridge State
+    // =========================================================================
+    const camPresets = {
+      overview: { pos: new THREE.Vector3(4.1, 2.75, 4.7), target: new THREE.Vector3(0.0, 0.65, -0.1) },
+      totem:    { pos: new THREE.Vector3(1.55, 1.55, 2.35), target: new THREE.Vector3(0.0, 0.78, 0.35) },
+      monitor:  { pos: new THREE.Vector3(-0.2, 1.38, 1.55), target: new THREE.Vector3(-0.95, 0.94, -1.25) },
+      lamp:     { pos: new THREE.Vector3(2.85, 1.9, 1.25), target: new THREE.Vector3(1.2, 0.85, -0.85) },
+    };
+
+    let activePreset = null;
+    let autoOrbit = true;
+    let isFocusRunning = false;
+
+    const camBtns = document.querySelectorAll('[data-cam]');
+    camBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        camBtns.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        activePreset = camPresets[btn.dataset.cam];
+      });
+    });
+
+    controls.addEventListener('start', () => {
+      activePreset = null;
+    });
+
+    const spinBtn = document.getElementById('spin-btn');
+    spinBtn.addEventListener('click', () => {
+      autoOrbit = !autoOrbit;
+      spinBtn.textContent = autoOrbit ? 'Orbit: On' : 'Orbit: Off';
+    });
+
+    const dockPanel = document.getElementById('dock-panel');
+    const collapseBtn = document.getElementById('collapse-btn');
+    let collapsed = false;
+    collapseBtn.addEventListener('click', () => {
+      collapsed = !collapsed;
+      dockPanel.querySelectorAll('.hud-btn').forEach((el) => el.classList.toggle('hidden', collapsed));
+      dockPanel.classList.toggle('collapsed', collapsed);
+      collapseBtn.textContent = collapsed ? 'Controls' : 'Hide';
+    });
+
+    window.setAppState = function (payload) {
+      if (!payload) return;
+      if (typeof payload.isFocusRunning === 'boolean') {
+        isFocusRunning = payload.isFocusRunning;
+      }
+      if (typeof payload.darkTheme === 'boolean') {
+        const bg = payload.darkTheme ? darkBg : lightBg;
+        scene.background.copy(bg);
+        scene.fog.color.copy(bg);
+      }
+    };
+
+    // Resize handling
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Lossless 60fps animation loop with pre-allocated clock
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const elapsed = clock.elapsedTime;
+
+      const speedMult = isFocusRunning ? 2.6 : 0.75;
+      outerGimbal.rotation.y += dt * 0.65 * speedMult;
+      outerGimbal.rotation.x = Math.sin(elapsed * 0.7) * 0.25;
+      midGimbal.rotation.z -= dt * 0.9 * speedMult;
+      midGimbal.rotation.x += dt * 0.45 * speedMult;
+      innerGimbal.rotation.y += dt * 1.45 * speedMult;
+      crystalCore.rotation.y -= dt * 1.1 * speedMult;
+      crystalCore.position.y = 0.82 + Math.sin(elapsed * 2.2) * 0.025;
+      coreLight.intensity = isFocusRunning ? 2.4 + Math.sin(elapsed * 4.0) * 0.45 : 1.4;
+
+      if (activePreset) {
+        const alpha = 1 - Math.exp(-5.2 * dt);
+        camera.position.lerp(activePreset.pos, alpha);
+        controls.target.lerp(activePreset.target, alpha);
+        if (camera.position.distanceTo(activePreset.pos) < 0.015) {
+          activePreset = null;
+        }
+      } else if (autoOrbit) {
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = isFocusRunning ? 1.1 : 0.45;
+      } else {
+        controls.autoRotate = false;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

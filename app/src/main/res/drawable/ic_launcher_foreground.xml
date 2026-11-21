@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Subtle inner emblem ring -->
+    <path
+        android:fillColor="#1E293B"
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2.2"
+        android:pathData="M54,23 A31,31 0 1,1 53.99,23 Z" />
+    <!-- Left chevron < -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M43,41 L28,54 L43,67 L46.5,63 L36,54 L46.5,45 Z" />
+    <!-- Right chevron > -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M65,41 L80,54 L65,67 L61.5,63 L72,54 L61.5,45 Z" />
+    <!-- Center slash / -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M56,36 L61.5,37 L52,72 L46.5,71 Z" />
+</vector>

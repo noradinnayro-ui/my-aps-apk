@@ -1,0 +1,165 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated developer profile and cumulative Pomodoro focus metrics.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Firebase Auth UID matching the document ID."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name from Google Sign-In."
+        },
+        "email": {
+          "type": "string",
+          "description": "User email address (owner-restricted PII)."
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Optional Google profile photo URL."
+        },
+        "completedFocusSessions": {
+          "type": "integer",
+          "description": "Total completed Pomodoro work intervals."
+        },
+        "totalFocusMinutes": {
+          "type": "integer",
+          "description": "Total focused minutes logged."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on every update."
+        }
+      },
+      "required": ["userId", "displayName", "completedFocusSessions", "totalFocusMinutes", "createdAt", "updatedAt"]
+    },
+    "SavedConfig": {
+      "title": "SavedConfig",
+      "description": "User-saved editor JSON configuration snapshot synced to cloud.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "title": {
+          "type": "string",
+          "description": "Friendly configuration name."
+        },
+        "jsonContent": {
+          "type": "string",
+          "description": "Validated JSON settings string."
+        },
+        "keysCount": {
+          "type": "integer",
+          "description": "Number of top-level keys in the configuration."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["userId", "title", "jsonContent", "keysCount", "createdAt", "updatedAt"]
+    },
+    "FocusSessionLog": {
+      "title": "FocusSessionLog",
+      "description": "Completed Pomodoro work interval log entry.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "presetName": {
+          "type": "string",
+          "description": "Focus preset name (e.g. CLASSIC, DEEP_WORK, SPRINT, CUSTOM)."
+        },
+        "durationMinutes": {
+          "type": "integer",
+          "description": "Completed work duration in minutes."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp()."
+        }
+      },
+      "required": ["userId", "presetName", "durationMinutes", "createdAt"]
+    },
+    "ActiveTimerState": {
+      "title": "ActiveTimerState",
+      "description": "Persisted active Pomodoro session state (task name, remaining seconds, phase, preset) for resuming across app launches.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID."
+        },
+        "taskName": {
+          "type": "string",
+          "description": "Current focus task title entered by the user."
+        },
+        "presetName": {
+          "type": "string",
+          "description": "Active FocusPreset enum name."
+        },
+        "phase": {
+          "type": "string",
+          "description": "Active FocusPhase enum name (FOCUS or BREAK)."
+        },
+        "totalSeconds": {
+          "type": "integer",
+          "description": "Total duration of the active phase in seconds."
+        },
+        "remainingSeconds": {
+          "type": "integer",
+          "description": "Seconds remaining in the active phase."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp set via FieldValue.serverTimestamp() on every update."
+        }
+      },
+      "required": ["userId", "taskName", "presetName", "phase", "totalSeconds", "remainingSeconds", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Per-user developer profile and focus totals, isolated strictly to the signed-in owner."
+    },
+    "/users/{userId}/configs/{configId}": {
+      "schema": { "$ref": "#/entities/SavedConfig" },
+      "description": "Cloud-synced JSON editor configurations owned by the user."
+    },
+    "/users/{userId}/focus_sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/FocusSessionLog" },
+      "description": "Completed Pomodoro focus session history owned by the user."
+    },
+    "/users/{userId}/active_timer/{timerId}": {
+      "schema": { "$ref": "#/entities/ActiveTimerState" },
+      "description": "Resumable active Pomodoro timer state owned by the user."
+    }
+  }
+}
